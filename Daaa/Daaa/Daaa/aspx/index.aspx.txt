@@ -1,0 +1,245 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Web;
+using System.Web.Security;
+using System.Web.UI;
+using System.Web.UI.HtmlControls;
+using System.Web.UI.WebControls;
+using System.Xml;
+
+public partial class index : System.Web.UI.Page
+{
+
+    protected void Page_Load(object sender, EventArgs e)
+    {
+        form1.InnerHtml = "";
+        string path = Server.MapPath("pano.xml");
+        List<GoodsData> goodsDatas = GetGoodList(path);
+        CreatePage(goodsDatas);
+        if (!IsPostBack)
+        {
+            if (Request.QueryString["pan"] != null && Request.QueryString["tilt"] != null)
+            {
+
+                move.InnerHtml = ("<script>pano.moveTo(\"" + Request.QueryString["pan"].ToString() + "\",\"" + Request.QueryString["tilt"].ToString() + "\",\"70\",\"2.0000\");</script>");
+            }
+        }
+    }
+
+    private void CreatePage(List<GoodsData> goodsDatas)
+    {
+        try
+        {
+            HtmlGenericControl backDiv = new HtmlGenericControl("div");
+            backDiv.Attributes.Add("style", "position: absolute; left: 0%; top: 0%; z-index: 999");
+            LinkButton lkbtnBack = new LinkButton();
+            lkbtnBack.ID = "lkbtnBack";
+            lkbtnBack.Click += LkbtnBack_Click;
+            HtmlGenericControl backImg = new HtmlGenericControl("img");
+            backImg.Attributes.Add("src", "../../Images/back.png");
+            lkbtnBack.Controls.Add(backImg);
+            backDiv.Controls.Add(lkbtnBack);
+
+            HtmlGenericControl mainDiv = new HtmlGenericControl("div");
+            mainDiv.Attributes.Add("style", "position: absolute; right: 0%; top: 0%; z-index: 999");
+            HtmlGenericControl mainNav = new HtmlGenericControl("nav");
+            mainNav.Attributes.Add("class", "com__nav");
+            mainDiv.Controls.Add(mainNav);
+            HtmlGenericControl mainUl = new HtmlGenericControl("ul");
+            mainUl.Attributes.Add("class", "com__nav-list");
+
+
+            for (int i = 0; i < goodsDatas.Count; i++)
+            {
+                HtmlGenericControl li = new HtmlGenericControl("li");
+                li.Attributes.Add("class", "com__nav-item");
+                HtmlGenericControl div = new HtmlGenericControl("div");
+                div.Attributes.Add("class", "com__nav-link");
+
+                HtmlGenericControl img = new HtmlGenericControl("img");
+                img.Attributes.Add("src", "" + goodsDatas[i].GPicUrl + ".png");
+                img.Attributes.Add("style", "width:100%;height:66%;");
+                LinkButton lkbtnLocation = new LinkButton();
+                LinkButton lkbtnCollect = new LinkButton();
+                LinkButton lkbtnBuy = new LinkButton();
+                HtmlGenericControl locationImg = new HtmlGenericControl("img");
+                locationImg.Attributes.Add("src", "../../Images/location.png");
+                locationImg.Attributes.Add("style", "width:31%;height:auto;");
+                HtmlGenericControl collectImg = new HtmlGenericControl("img");
+                collectImg.Attributes.Add("src", "../../Images/collect.png");
+                collectImg.Attributes.Add("style", "width:31%;height:auto;");
+                HtmlGenericControl buyImg = new HtmlGenericControl("img");
+                buyImg.Attributes.Add("src", "../../Images/buy.png");
+                buyImg.Attributes.Add("style", "width:31%;height:auto;");
+
+
+                lkbtnLocation.ID = "lkbtnLocation_" + goodsDatas[i].GVrData;
+                lkbtnLocation.Controls.Add(locationImg);
+                lkbtnLocation.Click += LkbtnLocation_Click;
+
+
+                lkbtnCollect.ID = "lkbtnCollect_" + i;
+                lkbtnCollect.Controls.Add(collectImg);
+                lkbtnCollect.Click += LkbtnCollect_Click;
+
+                lkbtnBuy.ID = "lkbtnBuy_" + goodsDatas[i].GLinkUrl;
+                lkbtnBuy.Controls.Add(buyImg);
+                lkbtnBuy.Attributes.Add("href", goodsDatas[i].GLinkUrl);
+
+                div.Controls.Add(img);
+                div.Controls.Add(lkbtnLocation);
+                div.Controls.Add(lkbtnCollect);
+                div.Controls.Add(lkbtnBuy);
+                li.Controls.Add(div);
+                mainUl.Controls.Add(li);
+            }
+            mainNav.Controls.Add(mainUl);
+
+
+            form1.Controls.Add(backDiv);
+            form1.Controls.Add(mainDiv);
+
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(ex);
+        }
+
+    }
+
+    private void LkbtnBuy_Click(object sender, EventArgs e)
+    {
+        LinkButton lkbtn = (LinkButton)sender;
+        string[] t = lkbtn.ID.Split('_');
+        Response.Redirect(t[1]);
+    }
+
+    private void LkbtnCollect_Click(object sender, EventArgs e)
+    {
+        if (Session["UserID"] != null)
+        {
+            CollectionData collectionData = new CollectionData();
+            CollectionManager collectionManager = new CollectionManager();
+            LinkButton linkButton = (LinkButton)sender;
+            string[] temp = linkButton.ID.Split('_');
+            collectionData.AccountID = Convert.ToInt32(Session["UserID"].ToString().Trim());
+            collectionData.GoodID = Convert.ToInt32(temp[1].ToString().Trim());
+            try
+            {
+                int res = collectionManager.CheckCollected(collectionData);
+                if (res == 1)
+                    collectionManager.CancelCollection(collectionData);
+                else
+                    collectionManager.SelectCollection(collectionData);
+            }
+            catch (Exception ex)
+            {
+
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+        }
+        else
+        {
+            Page.ClientScript.RegisterStartupScript(GetType(), "message", "<script>alert('您还未登录');</script>");
+            Response.Redirect("login.aspx");
+        }
+    }
+
+    private void LkbtnLocation_Click(object sender, EventArgs e)
+    {
+        LinkButton lkbtn = (LinkButton)sender;
+        string[] t = lkbtn.ID.Split('_');
+        string[] vrdata = t[1].Split(',');
+        string pan = vrdata[0];
+        string tilt = vrdata[1];
+
+        move.InnerHtml = "<script>pano.moveTo(" + pan + "," + tilt + ",\"70\",\"2.0000\");</script>";
+    }
+
+    private void LkbtnBack_Click(object sender, EventArgs e)
+    {
+        string s = Request.Url.ToString();
+
+        System.Diagnostics.Debug.WriteLine(s);
+        if (!s.Contains("isUnity"))
+            Response.Redirect("../../vrshop.aspx");
+        else
+            Response.Redirect("uniwebview://close");
+    }
+
+    /// <summary>
+    /// 解析XML获取商品列表
+    /// </summary>
+    /// <param name="path">XML文件路径</param>
+    /// <returns>返回商品集合</returns>
+    private List<GoodsData> GetGoodList(string path)
+    {
+        List<GoodsData> resList = new List<GoodsData> { };
+        XmlDocument xmlDoc = new XmlDocument();
+        xmlDoc.Load(path);
+        //获取根节点
+        XmlNode root = xmlDoc.DocumentElement;
+        //获取节点列表
+        XmlNodeList items = root.ChildNodes;
+        //遍历节点列表
+        foreach (XmlNode item in items)
+        {
+            //遍历item
+            if (item.Name == "hotspots")
+            {
+                foreach (XmlNode p in item)
+                    if (p.Name == "hotspot")
+                    {
+                        XmlAttributeCollection atts = p.Attributes;
+                        if (resList.Count != 0)
+                        {
+                            if (!GoodNameIsRepeat(resList, atts["title"].Value))
+                            {
+                                if (atts["url"].Value != "")
+                                {
+                                    GoodsData goodData = new GoodsData();
+                                    goodData.GName = atts["title"].Value;
+                                    goodData.GLinkUrl = atts["url"].Value;
+                                    goodData.GVrData = atts["pan"].Value + "," + atts["tilt"].Value;
+                                    goodData.GPicUrl = "https://twtwelkin.oss-cn-hangzhou.aliyuncs.com/twtweb/" + atts["id"].Value.ToLower();
+                                    resList.Add(goodData);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            GoodsData goodData = new GoodsData();
+                            goodData.GName = atts["title"].Value;
+                            goodData.GLinkUrl = atts["url"].Value;
+                            goodData.GVrData = atts["pan"].Value + "," + atts["tilt"].Value;
+                            goodData.GPicUrl = "https://twtwelkin.oss-cn-hangzhou.aliyuncs.com/twtweb/" + atts["id"].Value.ToLower();
+                            resList.Add(goodData);
+                        }
+
+                    }
+            }
+        }
+        return resList;
+    }
+
+    /// <summary>
+    /// 判断商品是否重复
+    /// </summary>
+    /// <param name="goodDatas">商品集合</param>
+    /// <param name="str">比对的文字</param>
+    /// <returns>true:重复 false:不重复</returns>
+    private bool GoodNameIsRepeat(List<GoodsData> goodDatas, string str)
+    {
+        for (int i = 0; i < goodDatas.Count; i++)
+        {
+            if (goodDatas[i].GName == str)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+}
